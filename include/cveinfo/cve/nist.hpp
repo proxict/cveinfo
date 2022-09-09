@@ -18,33 +18,47 @@ using namespace std::chrono_literals;
 namespace detail {
     inline std::nullopt_t handleNonOkStatusCode(long code, const std::string& cveId) {
         switch (code) {
+        case 403:
+            spdlog::error("{} - request forbidden: try limiting the request frequency", cveId);
+            return std::nullopt;
         case 404:
             spdlog::error("{} not found in the NIST database", cveId);
             return std::nullopt;
         case 503:
-            spdlog::error("Couldn't retreive infornation about {} - NIST database temporarily unavailable",
+            spdlog::error("Couldn't retrieve infornation about {} - NIST database temporarily unavailable",
                           cveId);
             return std::nullopt;
         case 500:
             spdlog::error(
-                "Couldn't retreive infornation about {} - internal server error in the NIST database", cveId);
+                "Couldn't retrieve infornation about {} - internal server error in the NIST database", cveId);
             return std::nullopt;
         default:
-            spdlog::error("Couldn't retreive infornation about {} - status code {}", cveId, code);
+            spdlog::error("Couldn't retrieve infornation about {} - status code {}", cveId, code);
             return std::nullopt;
         }
     }
 
     inline std::optional<std::string> fetchFromNist(const std::string& cveId) {
         try {
-            cpr::Response r = cpr::Get(cpr::Url{ "https://services.nvd.nist.gov/rest/json/cve/1.0/" + cveId },
-                                       cpr::VerifySsl{ false });
-            if (r.status_code != 200) {
-                return handleNonOkStatusCode(r.status_code, cveId);
+            int attempts = 3;
+            cpr::Response r;
+            while (attempts-- > 0) {
+                r = cpr::Get(cpr::Url{ "https://services.nvd.nist.gov/rest/json/cve/1.0/" + cveId },
+                             cpr::VerifySsl{ false });
+                // If the response is "forbidden", it probably means we're sending too many requests.
+                // Let's wait for a bit before issuing another request.
+                if (r.status_code == 403) {
+                    std::this_thread::sleep_for(5s * (3 - attempts));
+                    continue;
+                }
+                if (r.status_code != 200) {
+                    return handleNonOkStatusCode(r.status_code, cveId);
+                }
+                return r.text;
             }
-            return r.text;
+            return handleNonOkStatusCode(r.status_code, cveId);
         } catch (const std::exception& e) {
-            spdlog::error("Couldn't retreive infornation about {} - {}", cveId, e.what());
+            spdlog::error("Couldn't retrieve infornation about {} - {}", cveId, e.what());
             return std::nullopt;
         }
     }
@@ -72,7 +86,7 @@ inline CveInfo getCveInfo(const std::string& cveId) {
         }
         return json::parse(std::ifstream(cachedFile));
     } catch (const std::exception& e) {
-        spdlog::error("Couldn't retreive infornation about {} - {}", cveId, e.what());
+        spdlog::error("Couldn't retrieve infornation about {} - {}", cveId, e.what());
         return std::nullopt;
     }
 }
