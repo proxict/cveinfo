@@ -20,8 +20,9 @@ using namespace std::chrono_literals;
 
 class DebianSecurityTracker {
 public:
-    DebianSecurityTracker()
-        : mDbPath(utils::createCveInfoDir() / "debian-tracker.json")
+    DebianSecurityTracker(std::string codename)
+        : mCodename(std::move(codename))
+        , mDbPath(utils::createCveInfoDir() / "debian-tracker.json")
         , mHasDb(true) {
         if (!updateDebianSecurityTrackerDb(mDbPath)) {
             if (!fs::exists(mDbPath)) {
@@ -30,6 +31,10 @@ public:
             spdlog::warn("Using local debian security tracker database from {}",
                          utils::lastWriteTime(mDbPath));
         }
+    }
+
+    const std::string& getCodename() const {
+        return mCodename;
     }
 
     std::vector<std::pair<std::string, json>> getPackagesWithCVE(const std::string& cveId) const {
@@ -83,6 +88,7 @@ private:
         }
     }
 
+    std::string mCodename;
     fs::path mDbPath;
     bool mHasDb;
 };

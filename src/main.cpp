@@ -65,9 +65,9 @@ void printTrackerInfo(const cveinfo::debian::DebianSecurityTracker& tracker,
             }
             const json releases = package.second[cveId]["releases"];
             fmt::print("  Package: {}\n", packageName);
-            fmt::print("    bullseye:\n");
-            fmt::print("      Status: {}\n", releases["bullseye"]["status"]);
-            fmt::print("      Fixed version: {}\n", releases["bullseye"]["fixed_version"]);
+            fmt::print("    {}:\n", tracker.getCodename());
+            fmt::print("      Status: {}\n", releases[tracker.getCodename()]["status"]);
+            fmt::print("      Fixed version: {}\n", releases[tracker.getCodename()]["fixed_version"]);
         }
     } catch (...) {
     }
@@ -95,5 +95,5 @@ int main(const int argc, const char** argv) {
         return 1;
     }
     print(*cveDescription);
-    printTrackerInfo(cveinfo::debian::DebianSecurityTracker(), cveId, packageName);
+    printTrackerInfo(cveinfo::debian::DebianSecurityTracker("bullseye"), cveId, packageName);
 }
