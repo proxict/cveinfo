@@ -27,28 +27,36 @@ public:
             if (!fs::exists(mDbPath)) {
                 mHasDb = false;
             }
-            spdlog::warn("Using local debian security tracker database from {}", utils::lastWriteTime(mDbPath));
+            spdlog::warn("Using local debian security tracker database from {}",
+                         utils::lastWriteTime(mDbPath));
         }
     }
 
-    std::optional<std::pair<std::string, json>> findCveInPackage(const std::string& cveId) const {
+    std::vector<std::pair<std::string, json>> getPackagesWithCVE(const std::string& cveId) const {
         if (!mHasDb) {
-            return std::nullopt;
+            return {};
         }
+        std::vector<std::pair<std::string, json>> packages;
         try {
             const json debTrackerJson = json::parse(std::ifstream(mDbPath));
-            auto package =
-                std::find_if(std::begin(debTrackerJson), std::end(debTrackerJson), [&cveId](const json& obj) {
+
+            for (auto package = std::begin(debTrackerJson); package != std::end(debTrackerJson); ++package) {
+                package = std::find_if(package, std::end(debTrackerJson), [&cveId](const json& obj) {
                     return obj.find(cveId) != std::end(obj);
                 });
-            if (package != std::end(debTrackerJson)) {
-                return std::make_pair(package.key(), *package);
-            } else {
-                return std::nullopt;
+
+                if (package != std::end(debTrackerJson)) {
+                    packages.emplace_back(package.key(), *package);
+                } else {
+                    break;
+                }
             }
+
+            return packages;
         } catch (const std::exception& e) {
-            spdlog::error("Cannot find {} in the debian security tracker: {}", cveId, e.what());
-            return std::nullopt;
+            spdlog::error(
+                "Error occurred while searching for {} in the debian security tracker: {}", cveId, e.what());
+            return {};
         }
     }
 

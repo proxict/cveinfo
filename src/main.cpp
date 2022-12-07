@@ -52,11 +52,18 @@ void print(const cveinfo::nist::CveDescription& description) {
     }
 }
 
-void printTrackerInfo(const cveinfo::debian::DebianSecurityTracker& tracker, const std::string& cveId) {
+void printTrackerInfo(const cveinfo::debian::DebianSecurityTracker& tracker,
+                      const std::string& cveId,
+                      const std::optional<std::string>& name) {
     try {
-        if (auto package = tracker.findCveInPackage(cveId); package) {
-            const std::string packageName = package->first;
-            const json releases = package->second[cveId]["releases"];
+        const auto packages = tracker.getPackagesWithCVE(cveId);
+
+        for (const auto& package : packages) {
+            const std::string packageName = package.first;
+            if (name && *name != packageName) {
+                continue;
+            }
+            const json releases = package.second[cveId]["releases"];
             fmt::print("  Package: {}\n", packageName);
             fmt::print("    bullseye:\n");
             fmt::print("      Status: {}\n", releases["bullseye"]["status"]);
@@ -77,15 +84,16 @@ int main(const int argc, const char** argv) {
     spdlog::set_default_logger(logger);
 
     if (argc < 2) {
-        spdlog::error("Usage: {} <CVE ID>", argv[0]);
+        spdlog::error("Usage: {} <CVE ID>", argc > 0 ? argv[0] : "cveinfo");
         return 1;
     }
     const std::string cveId = argv[1];
+    std::optional<std::string> packageName = argc > 2 ? std::optional(argv[2]) : std::nullopt;
 
     const auto cveDescription = cveinfo::nist::getCveDescription(cveId);
     if (!cveDescription) {
         return 1;
     }
     print(*cveDescription);
-    printTrackerInfo(cveinfo::debian::DebianSecurityTracker(), cveId);
+    printTrackerInfo(cveinfo::debian::DebianSecurityTracker(), cveId, packageName);
 }
